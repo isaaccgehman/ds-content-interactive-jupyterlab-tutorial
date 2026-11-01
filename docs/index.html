@@ -1,0 +1,670 @@
+<!-- Built from the same source as the Claude artifact version. -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mill Rd">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#eef1f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121716" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Mill Rd Upkeep</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one narrow column like a clipboard checklist — sticky header with status counters, task rows grouped by urgency, bottom sheet for editing. */
+:root {
+  --bg: #eef1f0;
+  --surface: #ffffff;
+  --ink: #18201e;
+  --muted: #5d6965;
+  --line: #d5dcd9;
+  --accent: #2348b8;
+  --accent-ink: #ffffff;
+  --over: #c4321f;
+  --over-bg: #fbe7e3;
+  --soon: #a86200;
+  --soon-bg: #fdf0d9;
+  --ok: #1f7a4d;
+  --ok-bg: #e2f3e9;
+  --shadow: 0 1px 2px rgba(20, 30, 28, .06), 0 8px 24px rgba(20, 30, 28, .08);
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121716; --surface: #1b2220; --ink: #e8eeec; --muted: #98a6a1; --line: #2c3633;
+    --accent: #8aa6ff; --accent-ink: #0c1430;
+    --over: #ff8a76; --over-bg: #3a1d18; --soon: #f2b75b; --soon-bg: #382a12; --ok: #6fd3a0; --ok-bg: #15302a;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121716; --surface: #1b2220; --ink: #e8eeec; --muted: #98a6a1; --line: #2c3633;
+  --accent: #8aa6ff; --accent-ink: #0c1430;
+  --over: #ff8a76; --over-bg: #3a1d18; --soon: #f2b75b; --soon-bg: #382a12; --ok: #6fd3a0; --ok-bg: #15302a;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); }
+body {
+  color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap {
+  max-width: 640px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* Header */
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
+.top .wrap { padding-block: 14px 12px; display: grid; gap: 12px; }
+.titlebar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--display); font-stretch: 80%; font-weight: 800; font-size: 30px; line-height: 1; margin: 2px 0 0; letter-spacing: -.01em; text-wrap: balance; }
+.today { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 6px; }
+.iconbtn { flex: none; width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; }
+.iconbtn svg { width: 20px; height: 20px; }
+
+.counters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.counter { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 8px 10px; display: grid; gap: 0; }
+.counter b { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 26px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.counter span { font-size: 12px; color: var(--muted); font-weight: 600; }
+.counter.over b { color: var(--over); }
+.counter.soon b { color: var(--soon); }
+.counter.ok b { color: var(--ok); }
+.counter[aria-pressed="true"] { border-color: currentColor; box-shadow: inset 0 0 0 1px currentColor; }
+.counter.over[aria-pressed="true"] { color: var(--over); background: var(--over-bg); }
+.counter.soon[aria-pressed="true"] { color: var(--soon); background: var(--soon-bg); }
+.counter.ok[aria-pressed="true"] { color: var(--ok); background: var(--ok-bg); }
+.counter[aria-pressed="true"] span { color: inherit; }
+.meter { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; display: flex; }
+.meter i { display: block; height: 100%; }
+
+.tabs { display: grid; grid-template-columns: 1fr 1fr; background: var(--line); border-radius: 10px; padding: 3px; }
+.tabs button { border: 0; background: transparent; border-radius: 8px; padding: 7px; font-weight: 600; font-size: 14px; color: var(--muted); }
+.tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+
+/* Filters */
+.filters { display: grid; gap: 8px; padding-block: 12px 4px; }
+.filters, .top .wrap { grid-template-columns: minmax(0, 1fr); }
+.filters > *, .top .wrap > * { min-width: 0; }
+.field input[type="date"] { -webkit-appearance: none; appearance: none; min-height: 44px; display: block; }
+.search { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 16px; }
+.chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.chip .now { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; margin-left: 4px; opacity: .75; }
+.row2 { display: flex; gap: 8px; }
+.row2 select { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 14px; }
+
+/* List */
+main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
+.group h2 { font-family: var(--mono); font-weight: 500; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; display: flex; justify-content: space-between; }
+.list { display: grid; gap: 8px; }
+.task { display: grid; grid-template-columns: 4px 1fr auto; align-items: stretch; background: var(--surface); border-radius: 12px; border: 1px solid var(--line); overflow: hidden; }
+.task .stripe { background: var(--ok); }
+.task.overdue .stripe { background: var(--over); }
+.task.soon .stripe { background: var(--soon); }
+.task .info { min-width: 0; padding: 10px 12px; text-align: left; border: 0; background: transparent; display: grid; gap: 2px; }
+.subject { font-family: var(--display); font-stretch: 85%; font-weight: 700; font-size: 13px; letter-spacing: .02em; text-transform: uppercase; color: var(--muted); }
+.action { font-weight: 600; font-size: 15px; line-height: 1.3; overflow-wrap: anywhere; }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12.5px; color: var(--muted); margin-top: 3px; align-items: center; }
+.due { font-family: var(--mono); font-size: 12px; font-weight: 500; }
+.overdue .due { color: var(--over); }
+.soon .due { color: var(--soon); }
+.ok .due { color: var(--ok); }
+.done { margin: 8px 8px 8px 0; align-self: center; border: 1.5px solid var(--line); background: transparent; border-radius: 999px; width: 44px; height: 44px; display: grid; place-items: center; color: var(--muted); }
+.done svg { width: 20px; height: 20px; }
+.done:active { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
+.task.ok .done { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); }
+
+.empty { text-align: center; padding: 48px 12px; color: var(--muted); }
+.empty b { display: block; font-family: var(--display); font-stretch: 85%; font-size: 20px; color: var(--ink); margin-bottom: 4px; }
+.notice { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--soon-bg); color: var(--soon); font-size: 13px; font-weight: 500; }
+
+/* Ideas */
+.addidea { display: flex; gap: 8px; padding-block: 14px 4px; }
+.addidea input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 16px; }
+.btn { border: 0; border-radius: 10px; padding: 10px 14px; font-weight: 600; background: var(--accent); color: var(--accent-ink); }
+.btn.ghost { background: var(--surface); color: var(--ink); border: 1px solid var(--line); }
+.btn.danger { background: var(--over-bg); color: var(--over); }
+.btn.danger.armed { background: var(--over); color: #fff; }
+.idea { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 8px 8px 14px; }
+.idea p { flex: 1; min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.idea .sm { padding: 6px 10px; font-size: 13px; border-radius: 8px; flex: none; }
+
+/* FAB */
+.fab { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 6; height: 54px; padding: 0 20px 0 16px; border-radius: 27px; border: 0; background: var(--accent); color: var(--accent-ink); font-weight: 700; display: flex; align-items: center; gap: 6px; box-shadow: var(--shadow); }
+.fab svg { width: 22px; height: 22px; }
+
+/* Sheet */
+.scrim { position: fixed; inset: 0; background: rgba(10, 16, 14, .45); z-index: 20; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; background: var(--surface); border-radius: 18px 18px 0 0; max-height: 92%; overflow-y: auto; box-shadow: var(--shadow); padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); animation: up .22s ease-out; }
+@keyframes up { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+.sheet .wrap { padding-block: 10px 0; display: grid; gap: 14px; }
+.grab { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto; }
+.sheet h3 { font-family: var(--display); font-stretch: 80%; font-weight: 800; font-size: 22px; margin: 0; line-height: 1.1; text-wrap: balance; }
+.field { display: grid; gap: 4px; }
+.field label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.field input, .field select, .field textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-size: 16px; }
+.field textarea { min-height: 70px; resize: vertical; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid2 > * { min-width: 0; }
+.inline { display: flex; gap: 8px; }
+.inline input { flex: 1; min-width: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions .btn { flex: 1; }
+.statusline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pill { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; }
+.pill.overdue { background: var(--over-bg); color: var(--over); }
+.pill.soon { background: var(--soon-bg); color: var(--soon); }
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
+.history { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.history li { font-family: var(--mono); font-size: 12px; padding: 3px 8px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); }
+.small { font-size: 13px; color: var(--muted); }
+.optrow { display: grid; gap: 4px; padding: 12px 0; border-top: 1px solid var(--line); }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); z-index: 30; background: var(--ink); color: var(--bg); border-radius: 12px; padding: 10px 10px 10px 14px; display: flex; gap: 12px; align-items: center; font-size: 14px; box-shadow: var(--shadow); max-width: calc(100% - 32px); }
+.toast button { border: 0; background: transparent; color: var(--accent); font-weight: 700; padding: 4px 6px; filter: brightness(1.4); }
+:root[data-theme="dark"] .toast button { filter: none; }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="titlebar">
+      <div>
+        <div class="eyebrow">Home maintenance log</div>
+        <h1 id="homeName">1715 Mill Rd</h1>
+        <div class="today" id="today"></div>
+      </div>
+      <button class="iconbtn" id="menuBtn" aria-label="Options">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+    <div class="counters" id="counters">
+      <button class="counter over" data-status="overdue" aria-pressed="false"><b id="cOver">–</b><span>Overdue</span></button>
+      <button class="counter soon" data-status="soon" aria-pressed="false"><b id="cSoon">–</b><span>Due soon</span></button>
+      <button class="counter ok" data-status="ok" aria-pressed="false"><b id="cOk">–</b><span>Up to date</span></button>
+    </div>
+    <div class="meter" id="meter" aria-hidden="true"></div>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tabTasks" aria-selected="true">Tasks</button>
+      <button role="tab" id="tabIdeas" aria-selected="false">To add <span id="ideaCount"></span></button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="tasksView">
+    <div class="filters">
+      <input class="search" id="search" type="search" placeholder="Search tasks" autocomplete="off">
+      <div class="chips" id="seasonChips"></div>
+      <div class="row2">
+        <select id="catFilter" aria-label="Category"></select>
+        <select id="sortBy" aria-label="Group by">
+          <option value="due">Group by status</option>
+          <option value="category">Group by category</option>
+          <option value="freq">Group by frequency</option>
+        </select>
+      </div>
+    </div>
+    <div id="notice"></div>
+    <div id="list"></div>
+  </section>
+  <section id="ideasView" hidden>
+    <form class="addidea" id="ideaForm">
+      <input id="ideaInput" placeholder="Something to add to the schedule" autocomplete="off">
+      <button class="btn" type="submit">Add</button>
+    </form>
+    <p class="small">Things to work into the schedule later. Tap “Schedule” to turn one into a recurring task.</p>
+    <div class="list" id="ideaList"></div>
+  </section>
+</main>
+
+<button class="fab" id="fab" aria-label="Add task">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+  Task
+</button>
+
+<div id="sheetHost"></div>
+<div id="toastHost"></div>
+<input type="file" id="importFile" accept="application/json,.json" hidden>
+
+<script>
+(() => {
+  "use strict";
+  // ---------- helpers ----------
+  const $ = (s, r = document) => r.querySelector(s);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const DAY = 86400000;
+  const SEASONS = ["Spring", "Summer", "Fall", "Winter"];
+  const pad = n => String(n).padStart(2, "0");
+  const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parse = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+  const today = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+  const todayIso = () => iso(today());
+  const fmtDate = d => d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  const currentSeason = () => { const m = new Date().getMonth(); return m >= 2 && m <= 4 ? "Spring" : m >= 5 && m <= 7 ? "Summer" : m >= 8 && m <= 10 ? "Fall" : "Winter"; };
+  const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+  // Status rules carried over from the spreadsheet formula:
+  // monthly tasks are due 30 days after the last completion and warn 1 week ahead;
+  // longer tasks are due after freq × 30.43 days and warn 1 month ahead.
+  function dueInfo(t) {
+    if (!t.last) return { status: "overdue", days: -Infinity, due: null };
+    const freq = Number(t.freq) || 12;
+    const span = freq === 1 ? 30 : Math.round(freq * 30.43);
+    const warn = freq === 1 ? 7 : 30;
+    const due = new Date(parse(t.last).getTime() + span * DAY);
+    const days = Math.round((due - today()) / DAY);
+    return { status: days < 0 ? "overdue" : days < warn ? "soon" : "ok", days, due };
+  }
+  function spanText(d) {
+    if (d < 14) return `${d} day${d === 1 ? "" : "s"}`;
+    if (d < 60) return `${Math.round(d / 7)} weeks`;
+    if (d < 730) { const m = Math.round(d / 30.4); return `${m} month${m === 1 ? "" : "s"}`; }
+    return `${(d / 365).toFixed(1).replace(/\.0$/, "")} years`;
+  }
+  function dueText(info) {
+    if (!info.due) return "Never logged";
+    if (info.days < 0) return `${spanText(-info.days)} overdue`;
+    if (info.days === 0) return "Due today";
+    return `Due in ${spanText(info.days)}`;
+  }
+  function freqText(f) {
+    f = Number(f);
+    if (f === 1) return "Monthly";
+    if (f === 12) return "Yearly";
+    if (f % 12 === 0) return `Every ${f / 12} years`;
+    if (f < 12) return `Every ${f} months`;
+    return `Every ${f} months`;
+  }
+  function splitName(name) {
+    const i = name.indexOf(":");
+    if (i > 0 && i < 40) return { subject: name.slice(0, i).trim(), action: name.slice(i + 1).trim() };
+    return { subject: "", action: name };
+  }
+
+  // ---------- storage ----------
+  // Two back ends with one interface: the artifact's shared db (synced to the
+  // Claude account) and localStorage (standalone home-screen app).
+  const LS_KEY = "mill-rd-upkeep-v1";
+  const store = {
+    mode: "loading", tasks: [], ideas: [], home: "1715 Mill Rd",
+    listeners: [], db: null,
+    emit() { this.listeners.forEach(f => f()); },
+    async start() {
+      let db = null;
+      if (window.claude && typeof window.claude.use === "function") {
+        try { db = await window.claude.use("db"); } catch (e) { db = null; }
+      }
+      if (db) return this.startDb(db);
+      return this.startLocal();
+    },
+    startDb(db) {
+      this.mode = "db"; this.db = db;
+      let confirmed = false;
+      const timer = setTimeout(() => { if (!confirmed) { ui.notice = "Can’t reach your saved log yet. Showing what’s loaded so far."; render(); } }, 10000);
+      const onErr = () => { clearTimeout(timer); ui.notice = "Your log couldn’t be loaded. Reopen the page to try again."; render(); };
+      const ok = snap => { if (!snap.metadata.fromCache && !confirmed) { confirmed = true; clearTimeout(timer); ui.notice = ""; } };
+      db.collection("tasks").onSnapshot(snap => {
+        this.tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        this.loaded = true; ok(snap); this.emit();
+      }, onErr);
+      db.collection("ideas").onSnapshot(snap => {
+        this.ideas = snap.docs.map(d => ({ id: d.id, ...d.data() })); this.emit();
+      }, () => {});
+    },
+    async startLocal() {
+      this.mode = "local";
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch (e) { saved = null; }
+      if (saved && Array.isArray(saved.tasks)) {
+        this.tasks = saved.tasks; this.ideas = saved.ideas || []; this.home = saved.home || this.home;
+      } else {
+        await this.loadSeed();
+      }
+      this.loaded = true; this.emit();
+    },
+    async loadSeed() {
+      try {
+        const r = await fetch("tasks.json", { cache: "no-store" });
+        if (!r.ok) throw new Error();
+        const seed = await r.json();
+        this.tasks = seed.tasks; this.ideas = seed.ideas; this.home = seed.home || this.home;
+        this.persist();
+        return true;
+      } catch (e) { return false; }
+    },
+    persist() {
+      if (this.mode !== "local") return;
+      try { localStorage.setItem(LS_KEY, JSON.stringify({ home: this.home, tasks: this.tasks, ideas: this.ideas })); }
+      catch (e) { toast("Couldn’t save on this device. Export a backup from Options."); }
+    },
+    body(o) { const { id, ...rest } = o; return JSON.parse(JSON.stringify(rest)); },
+    async put(coll, obj) {
+      const arr = this[coll];
+      const i = arr.findIndex(x => x.id === obj.id);
+      if (i >= 0) arr[i] = obj; else arr.push(obj);
+      this.emit();
+      if (this.mode === "db") {
+        try { await this.db.collection(coll).doc(obj.id).set(this.body(obj)); }
+        catch (e) { toast(e && e.code === "quota_exceeded" ? "Storage is full. Delete some tasks or ideas." : "That change didn’t save. Check your connection."); }
+      } else this.persist();
+    },
+    async remove(coll, id) {
+      this[coll] = this[coll].filter(x => x.id !== id);
+      this.emit();
+      if (this.mode === "db") { try { await this.db.collection(coll).doc(id).delete(); } catch (e) { toast("Delete didn’t save. Check your connection."); } }
+      else this.persist();
+    },
+    async putMany(coll, objs) {
+      objs.forEach(o => { const i = this[coll].findIndex(x => x.id === o.id); if (i >= 0) this[coll][i] = o; else this[coll].push(o); });
+      this.emit();
+      if (this.mode === "db") {
+        for (let i = 0; i < objs.length; i += 10) {
+          await Promise.all(objs.slice(i, i + 10).map(o => this.db.collection(coll).doc(o.id).set(this.body(o)).catch(() => null)));
+        }
+      } else this.persist();
+    }
+  };
+
+  // ---------- UI state ----------
+  const ui = { tab: "tasks", status: null, season: "All", cat: "All", sort: "due", q: "", notice: "" };
+  try { const s = JSON.parse(localStorage.getItem(LS_KEY + "-ui") || "{}"); if (s.sort) ui.sort = s.sort; } catch (e) {}
+  const saveUi = () => { try { localStorage.setItem(LS_KEY + "-ui", JSON.stringify({ sort: ui.sort })); } catch (e) {} };
+
+  const ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+
+  function render() {
+    const T = today();
+    $("#today").textContent = `Today · ${T.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" })} · ${currentSeason()}`;
+    $("#homeName").textContent = store.home;
+    const tasks = store.tasks.map(t => ({ ...t, info: dueInfo(t), ...splitName(t.task || "") }));
+    const counts = { overdue: 0, soon: 0, ok: 0 };
+    tasks.forEach(t => counts[t.info.status]++);
+    $("#cOver").textContent = store.loaded ? counts.overdue : "–";
+    $("#cSoon").textContent = store.loaded ? counts.soon : "–";
+    $("#cOk").textContent = store.loaded ? counts.ok : "–";
+    const total = tasks.length || 1;
+    $("#meter").innerHTML = ["ok", "soon", "overdue"].map(s => `<i style="width:${(counts[s] / total) * 100}%;background:var(--${s === "overdue" ? "over" : s})"></i>`).join("");
+    document.querySelectorAll(".counter").forEach(b => b.setAttribute("aria-pressed", String(ui.status === b.dataset.status)));
+    $("#ideaCount").textContent = store.ideas.length ? `(${store.ideas.length})` : "";
+    $("#tabTasks").setAttribute("aria-selected", String(ui.tab === "tasks"));
+    $("#tabIdeas").setAttribute("aria-selected", String(ui.tab === "ideas"));
+    $("#tasksView").hidden = ui.tab !== "tasks";
+    $("#ideasView").hidden = ui.tab !== "ideas";
+    $("#fab").hidden = ui.tab !== "tasks";
+
+    // season chips
+    const cs = currentSeason();
+    $("#seasonChips").innerHTML = ["All", ...SEASONS, "Year-round"].map(s =>
+      `<button class="chip" data-season="${s}" aria-pressed="${ui.season === s}">${s}${s === cs ? '<span class="now">NOW</span>' : ""}</button>`).join("");
+    // categories
+    const cats = [...new Set(store.tasks.map(t => t.category).filter(Boolean))].sort();
+    if (ui.cat !== "All" && !cats.includes(ui.cat)) ui.cat = "All";
+    $("#catFilter").innerHTML = `<option value="All">All categories</option>` + cats.map(c => `<option ${c === ui.cat ? "selected" : ""}>${esc(c)}</option>`).join("");
+    $("#sortBy").value = ui.sort;
+
+    $("#notice").innerHTML = ui.notice ? `<div class="notice">${esc(ui.notice)}</div>` : "";
+
+    // filter
+    const q = ui.q.trim().toLowerCase();
+    let shown = tasks.filter(t =>
+      (!ui.status || t.info.status === ui.status) &&
+      (ui.cat === "All" || t.category === ui.cat) &&
+      (ui.season === "All" || (ui.season === "Year-round" ? !t.season : t.season === ui.season)) &&
+      (!q || `${t.task} ${t.category} ${t.notes || ""}`.toLowerCase().includes(q)));
+    shown.sort((a, b) => (a.info.days - b.info.days) || ((a.order ?? 1e9) - (b.order ?? 1e9)));
+
+    let groups;
+    if (ui.sort === "due") {
+      groups = [["overdue", "Overdue"], ["soon", "Due soon"], ["ok", "Up to date"]].map(([k, label]) => [label, shown.filter(t => t.info.status === k)]);
+    } else if (ui.sort === "category") {
+      groups = cats.map(c => [c, shown.filter(t => t.category === c)]);
+    } else {
+      const fs = [...new Set(shown.map(t => Number(t.freq)))].sort((a, b) => a - b);
+      groups = fs.map(f => [freqText(f), shown.filter(t => Number(t.freq) === f)]);
+    }
+    groups = groups.filter(g => g[1].length);
+
+    if (!store.loaded) {
+      $("#list").innerHTML = `<div class="empty"><b>Loading your log…</b>Your tasks will appear here.</div>`;
+    } else if (!store.tasks.length) {
+      $("#list").innerHTML = `<div class="empty"><b>No tasks yet</b>Tap “+ Task” to add your first recurring job.</div>`;
+    } else if (!groups.length) {
+      $("#list").innerHTML = `<div class="empty"><b>Nothing matches</b>Try a different season, category or search.</div>`;
+    } else {
+      $("#list").innerHTML = groups.map(([label, items]) => `
+        <section class="group"><h2><span>${esc(label)}</span><span>${items.length}</span></h2>
+        <div class="list">${items.map(rowHtml).join("")}</div></section>`).join("");
+    }
+
+    // ideas
+    const ideas = [...store.ideas].sort((a, b) => (a.order ?? 1e9) - (b.order ?? 1e9));
+    $("#ideaList").innerHTML = ideas.length ? ideas.map(i => `
+      <div class="idea" data-id="${esc(i.id)}"><p>${esc(i.text)}</p>
+        <button class="btn ghost sm" data-act="schedule">Schedule</button>
+        <button class="btn danger sm" data-act="delidea" aria-label="Remove">✕</button></div>`).join("")
+      : `<div class="empty"><b>List is clear</b>Add things you want to start tracking.</div>`;
+  }
+
+  function rowHtml(t) {
+    const s = t.info.status;
+    const lastTxt = t.last ? `Last ${fmtDate(parse(t.last))}` : "";
+    return `<article class="task ${s}" data-id="${esc(t.id)}">
+      <div class="stripe"></div>
+      <button class="info" data-act="open">
+        ${t.subject ? `<span class="subject">${esc(t.subject)}</span>` : ""}
+        <span class="action">${esc(t.action)}</span>
+        <span class="meta"><span class="due">${esc(dueText(t.info))}</span><span>${esc(freqText(t.freq))}${t.season ? " · " + esc(t.season) : ""}</span>${lastTxt ? `<span>${lastTxt}</span>` : ""}</span>
+      </button>
+      <button class="done" data-act="done" aria-label="Mark done today">${ICON_CHECK}</button>
+    </article>`;
+  }
+
+  // ---------- actions ----------
+  let toastTimer;
+  function toast(msg, undo) {
+    clearTimeout(toastTimer);
+    $("#toastHost").innerHTML = `<div class="toast" role="status"><span>${esc(msg)}</span>${undo ? '<button id="undoBtn">Undo</button>' : ""}</div>`;
+    if (undo) $("#undoBtn").onclick = () => { undo(); $("#toastHost").innerHTML = ""; };
+    toastTimer = setTimeout(() => { $("#toastHost").innerHTML = ""; }, 5000);
+  }
+  function markDone(id, date = todayIso()) {
+    const t = store.tasks.find(x => x.id === id); if (!t) return;
+    const prev = { ...t, history: [...(t.history || [])] };
+    const history = [date, ...(t.history || []).filter(d => d !== date)].sort().reverse().slice(0, 24);
+    store.put("tasks", { ...t, last: history[0], history });
+    toast(`Logged: ${splitName(t.task).action}`, () => store.put("tasks", prev));
+  }
+
+  // two-tap confirm (dialogs are unavailable inside the viewer)
+  function armed(btn, label) {
+    if (btn.classList.contains("armed")) return true;
+    const orig = btn.textContent;
+    btn.classList.add("armed"); btn.textContent = label;
+    setTimeout(() => { btn.classList.remove("armed"); btn.textContent = orig; }, 3000);
+    return false;
+  }
+
+  function closeSheet() { $("#sheetHost").innerHTML = ""; document.body.style.overflow = ""; }
+  function openSheet(html) {
+    $("#sheetHost").innerHTML = `<div class="scrim" id="scrim"></div><div class="sheet" role="dialog" aria-modal="true"><div class="wrap"><div class="grab"></div>${html}</div></div>`;
+    document.body.style.overflow = "hidden";
+    $("#scrim").onclick = closeSheet;
+  }
+
+  function openTask(id, preset) {
+    const isNew = !id;
+    const t = isNew ? { id: uid("t"), task: preset || "", category: ui.cat !== "All" ? ui.cat : "", freq: 12, season: null, last: null, cost: null, notes: "", history: [], order: Date.now() } : store.tasks.find(x => x.id === id);
+    if (!t) return;
+    const info = dueInfo(t);
+    const cats = [...new Set(store.tasks.map(x => x.category).filter(Boolean))].sort();
+    const freqs = [[1, "Monthly"], [3, "Every 3 months"], [6, "Every 6 months"], [12, "Yearly"], [24, "Every 2 years"], [36, "Every 3 years"], [60, "Every 5 years"], [120, "Every 10 years"]];
+    if (!freqs.some(f => f[0] === Number(t.freq))) freqs.push([Number(t.freq), freqText(t.freq)]);
+    openSheet(`
+      <h3>${isNew ? "New task" : esc(t.task)}</h3>
+      ${isNew ? "" : `<div class="statusline"><span class="pill ${info.status}">${info.status === "ok" ? "Up to date" : info.status === "soon" ? "Due soon" : "Overdue"}</span><span class="small">${esc(dueText(info))}${info.due ? " · " + fmtDate(info.due) : ""}</span></div>
+      <div class="actions"><button class="btn" id="fDoneToday">Mark done today</button></div>`}
+      <form id="taskForm" class="grid" style="display:grid;gap:12px">
+        <div class="field"><label for="fTask">Task</label><input id="fTask" required value="${esc(t.task)}" placeholder="Gutters: Clean"></div>
+        <div class="field"><label for="fCat">Category</label><input id="fCat" list="catList" value="${esc(t.category)}" placeholder="Exterior Maintenance"><datalist id="catList">${cats.map(c => `<option value="${esc(c)}">`).join("")}</datalist></div>
+        <div class="grid2">
+          <div class="field"><label for="fFreq">Repeats</label><select id="fFreq">${freqs.map(([v, l]) => `<option value="${v}" ${v === Number(t.freq) ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+          <div class="field"><label for="fSeason">Season</label><select id="fSeason"><option value="">Any time</option>${SEASONS.map(s => `<option ${s === t.season ? "selected" : ""}>${s}</option>`).join("")}</select></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label for="fLast">Last completed</label><input id="fLast" type="date" value="${t.last || ""}" max="${todayIso()}"></div>
+          <div class="field"><label for="fCost">Avg. cost ($)</label><input id="fCost" type="number" inputmode="decimal" min="0" step="any" value="${t.cost ?? ""}" placeholder="0"></div>
+        </div>
+        <div class="field"><label for="fNotes">Notes</label><textarea id="fNotes" placeholder="Filter size, contractor, part numbers…">${esc(t.notes || "")}</textarea></div>
+        ${!isNew && (t.history || []).length ? `<div class="field"><label>Completed on</label><ul class="history">${t.history.map(d => `<li>${fmtDate(parse(d))}</li>`).join("")}</ul></div>` : ""}
+        <div class="actions">
+          <button type="button" class="btn ghost" id="fCancel">Cancel</button>
+          <button type="submit" class="btn">${isNew ? "Add task" : "Save"}</button>
+        </div>
+        ${isNew ? "" : `<button type="button" class="btn danger" id="fDelete">Delete task</button>`}
+      </form>`);
+    $("#fCancel").onclick = closeSheet;
+    if (!isNew) {
+      $("#fDoneToday").onclick = () => { closeSheet(); markDone(t.id); };
+      $("#fDelete").onclick = e => { if (armed(e.currentTarget, "Tap again to delete")) { closeSheet(); store.remove("tasks", t.id); toast("Task deleted", () => store.put("tasks", t)); } };
+    }
+    $("#taskForm").onsubmit = e => {
+      e.preventDefault();
+      const last = $("#fLast").value || null;
+      let history = [...(t.history || [])];
+      if (last && last !== t.last && !history.includes(last)) history = [last, ...history].sort().reverse().slice(0, 24);
+      const cost = $("#fCost").value === "" ? null : Number($("#fCost").value);
+      const next = { ...t, task: $("#fTask").value.trim(), category: $("#fCat").value.trim() || "Other", freq: Number($("#fFreq").value), season: $("#fSeason").value || null, last, cost, notes: $("#fNotes").value.trim(), history };
+      if (!next.task) return;
+      closeSheet();
+      store.put("tasks", next);
+      if (isNew && preset) { const idea = store.ideas.find(i => i.text === preset); if (idea) store.remove("ideas", idea.id); }
+      toast(isNew ? "Task added" : "Saved");
+    };
+  }
+
+  function toCsv() {
+    const rows = [["Category", "Task", "Frequency (months)", "Season", "Last Completed", "Status", "Next Due", "Avg. Cost", "Notes"]];
+    store.tasks.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).forEach(t => {
+      const i = dueInfo(t);
+      rows.push([t.category, t.task, t.freq, t.season || "", t.last || "", i.status === "ok" ? "COMPLETE" : i.status === "soon" ? "WARNING" : "OVERDUE", i.due ? iso(i.due) : "", t.cost ?? "", t.notes || ""]);
+    });
+    return rows.map(r => r.map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(",")).join("\n");
+  }
+  async function saveFile(filename, data, type) {
+    if (store.mode === "db") {
+      const dl = await window.claude.use("downloads").catch(() => null);
+      if (!dl) return toast("Downloads aren’t available here.");
+      try { await dl.save({ filename, data }); } catch (e) { if (e && e.code !== "cancelled") toast("The file wasn’t saved."); }
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([data], { type }));
+    const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  function openMenu() {
+    const where = store.mode === "db" ? "Saved to your Claude account. Changes show up on every device where you open this page." : "Saved on this device only. Export a backup now and then so you don’t lose your history.";
+    openSheet(`
+      <h3>Options</h3>
+      <p class="small" style="margin:0">${where}</p>
+      <div class="optrow"><strong>Start fresh from today</strong><span class="small">Logs every task as done today. Handy right after you set the app up, since the spreadsheet had no completion dates.</span><button class="btn ghost" id="oAllDone">Mark all done today</button></div>
+      <div class="optrow"><strong>Export</strong><span class="small">A spreadsheet-friendly CSV with status and next due date.</span><button class="btn ghost" id="oCsv">Export CSV</button></div>
+      ${store.mode === "local" ? `
+      <div class="optrow"><strong>Backup</strong><span class="small">Save or restore everything, including history and notes.</span>
+        <div class="actions"><button class="btn ghost" id="oBackup">Export backup</button><button class="btn ghost" id="oRestore">Restore backup</button></div></div>
+      <div class="optrow"><strong>Reset</strong><span class="small">Reload the original task list from the spreadsheet. Your history is erased.</span><button class="btn danger" id="oReset">Reset to spreadsheet</button></div>` : ""}
+      <div class="actions"><button class="btn" id="oClose">Done</button></div>`);
+    $("#oClose").onclick = closeSheet;
+    $("#oAllDone").onclick = e => {
+      if (!armed(e.currentTarget, `Tap again to log all ${store.tasks.length}`)) return;
+      const d = todayIso();
+      const prev = store.tasks.map(t => ({ ...t }));
+      store.putMany("tasks", store.tasks.map(t => ({ ...t, last: d, history: [d, ...(t.history || []).filter(x => x !== d)].slice(0, 24) })));
+      closeSheet(); toast("All tasks logged as done today", () => store.putMany("tasks", prev));
+    };
+    $("#oCsv").onclick = () => saveFile(`home-maintenance-${todayIso()}.csv`, toCsv(), "text/csv");
+    if (store.mode === "local") {
+      $("#oBackup").onclick = () => saveFile(`home-maintenance-backup-${todayIso()}.json`, JSON.stringify({ home: store.home, tasks: store.tasks, ideas: store.ideas }, null, 1), "application/json");
+      $("#oRestore").onclick = () => $("#importFile").click();
+      $("#oReset").onclick = async e => { if (!armed(e.currentTarget, "Tap again to erase history")) return; closeSheet(); if (await store.loadSeed()) { store.emit(); toast("Reset to the spreadsheet list"); } else toast("Couldn’t load the original list."); };
+    }
+  }
+
+  $("#importFile").onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    try {
+      const data = JSON.parse(await f.text());
+      if (!Array.isArray(data.tasks)) throw new Error();
+      store.tasks = data.tasks; store.ideas = data.ideas || []; store.home = data.home || store.home;
+      store.persist(); store.emit(); closeSheet(); toast(`Restored ${data.tasks.length} tasks`);
+    } catch (err) { toast("That file isn’t a backup from this app."); }
+  };
+
+  // ---------- events ----------
+  $("#counters").onclick = e => { const b = e.target.closest(".counter"); if (!b) return; ui.status = ui.status === b.dataset.status ? null : b.dataset.status; ui.tab = "tasks"; render(); };
+  $("#seasonChips").onclick = e => { const b = e.target.closest(".chip"); if (!b) return; ui.season = b.dataset.season; render(); };
+  $("#catFilter").onchange = e => { ui.cat = e.target.value; render(); };
+  $("#sortBy").onchange = e => { ui.sort = e.target.value; saveUi(); render(); };
+  $("#search").oninput = e => { ui.q = e.target.value; render(); };
+  $("#tabTasks").onclick = () => { ui.tab = "tasks"; render(); };
+  $("#tabIdeas").onclick = () => { ui.tab = "ideas"; render(); };
+  $("#fab").onclick = () => openTask(null);
+  $("#menuBtn").onclick = openMenu;
+  $("#list").onclick = e => {
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const id = b.closest(".task").dataset.id;
+    if (b.dataset.act === "done") markDone(id); else openTask(id);
+  };
+  $("#ideaForm").onsubmit = e => {
+    e.preventDefault();
+    const text = $("#ideaInput").value.trim(); if (!text) return;
+    $("#ideaInput").value = "";
+    store.put("ideas", { id: uid("i"), text, order: Date.now() });
+  };
+  $("#ideaList").onclick = e => {
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const idea = store.ideas.find(i => i.id === b.closest(".idea").dataset.id); if (!idea) return;
+    if (b.dataset.act === "schedule") openTask(null, idea.text);
+    else if (armed(b, "Remove?")) { store.remove("ideas", idea.id); toast("Removed", () => store.put("ideas", idea)); }
+  };
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
+  // refresh statuses when the app comes back to the foreground on a new day
+  let lastDay = todayIso();
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && todayIso() !== lastDay) { lastDay = todayIso(); render(); } });
+
+  store.listeners.push(render);
+  render();
+  store.start();
+  if ("serviceWorker" in navigator && !window.claude && location.protocol === "https:") {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+})();
+</script>
+
+</body>
+</html>
