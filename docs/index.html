@@ -241,7 +241,7 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
   <section id="topView">
     <div id="topNotice"></div>
     <ol class="top3" id="topList"></ol>
-    <p class="small rule">Overdue tasks come first, quickest job first. After that, tasks are ranked by days until due plus days to complete, so a short job due tomorrow can move ahead of a long job due today.</p>
+    <p class="small rule">The window is how long a task can safely wait once it’s due. Overdue tasks come first, tightest window first. After that, tasks are ranked by when their window closes (days until due plus window), so a task with a tight window due tomorrow can move ahead of a relaxed one due today.</p>
   </section>
   <section id="tasksView">
     <div class="filters">
@@ -307,10 +307,10 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
     if (freq === 1) return 30;
     return Math.round(freq * 30.43);
   }
-  // Time to complete: 1–30 days, and always shorter than the repeat interval.
+  // Window to complete (stored as `ttc`): how many days the task can safely wait
+  // once it's due. 1–30 days, and always shorter than the repeat interval.
   const maxTtc = freq => Math.max(1, Math.min(30, intervalDays(freq) - 1));
   const ttcOf = t => Math.min(maxTtc(t.freq), Math.max(1, Math.round(Number(t.ttc) || 1)));
-  const ttcText = n => `${n} day${n === 1 ? "" : "s"} to complete`;
   function dueInfo(t) {
     if (!t.last) return { status: "overdue", days: -Infinity, due: null };
     const freq = Number(t.freq) || 12;
@@ -343,10 +343,10 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
     return `Every ${f} months`;
   }
   // Top Three ordering.
-  // 1. Overdue tasks come first; among them the quickest job wins, then the most overdue.
-  // 2. All other tasks are ranked by (days until due + days to complete), so a short
-  //    job due tomorrow (1 + 2 = 3) beats a 30-day job due today (0 + 30 = 30),
-  //    and on the same due date the shorter job wins.
+  // 1. Overdue tasks come first; among them the tightest window wins, then the most overdue.
+  // 2. All other tasks are ranked by (days until due + window), i.e. when the window
+  //    closes: a 2-day window due tomorrow (1 + 2 = 3) beats a 30-day window due
+  //    today (0 + 30 = 30), and on the same due date the tighter window wins.
   function priorityCmp(a, b) {
     const ao = a.info.days < 0, bo = b.info.days < 0;
     if (ao !== bo) return ao ? -1 : 1;
@@ -544,7 +544,7 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
       <button class="info" data-act="open">
         ${t.subject ? `<span class="subject">${esc(t.subject)}</span>` : ""}
         <span class="action">${esc(t.action)}</span>
-        <span class="meta"><span class="due">${esc(dueText(t.info))}</span><span>${esc(freqText(t.freq))}${t.season ? " · " + esc(t.season) : ""}</span><span>${t.ttc}d to complete</span>${lastTxt ? `<span>${lastTxt}</span>` : ""}</span>
+        <span class="meta"><span class="due">${esc(dueText(t.info))}</span><span>${esc(freqText(t.freq))}${t.season ? " · " + esc(t.season) : ""}</span><span>${t.ttc}-day window</span>${lastTxt ? `<span>${lastTxt}</span>` : ""}</span>
       </button>
       <button class="done" data-act="done" aria-label="Mark done today">${ICON_CHECK}</button>
     </article>`;
@@ -552,12 +552,12 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
 
   function pickHtml(t, rank) {
     const s = t.info.status;
-    let dueVal, startVal;
-    if (!t.info.due) { dueVal = "Never logged"; startVal = "Now"; }
+    let dueVal, byVal;
+    if (!t.info.due) { dueVal = "Never logged"; byVal = t.ttc === 1 ? "Today" : `Within ${t.ttc} days`; }
     else {
       dueVal = t.info.days < 0 ? `${spanText(-t.info.days)} late` : t.info.days === 0 ? "Today" : fmtShort(t.info.due);
-      const start = new Date(t.info.due.getTime() - t.ttc * DAY);
-      startVal = start <= today() ? "Now" : fmtShort(start);
+      const close = t.info.days + t.ttc;
+      byVal = close < 0 ? "Window passed" : close === 0 ? "Today" : fmtShort(new Date(t.info.due.getTime() + t.ttc * DAY));
     }
     return `<li class="pick ${s}" data-id="${esc(t.id)}">
       <span class="rank" aria-label="Priority ${rank}">${rank}</span>
@@ -567,8 +567,8 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
       </button>
       <dl class="facts">
         <div><dt>Due</dt><dd class="d">${esc(dueVal)}</dd></div>
-        <div><dt>Takes</dt><dd>${t.ttc} day${t.ttc === 1 ? "" : "s"}</dd></div>
-        <div><dt>Start</dt><dd>${esc(startVal)}</dd></div>
+        <div><dt>Window</dt><dd>${t.ttc} day${t.ttc === 1 ? "" : "s"}</dd></div>
+        <div><dt>Finish by</dt><dd class="d">${esc(byVal)}</dd></div>
       </dl>
       <button class="btn ghost done-wide" data-act="done">${ICON_CHECK} Mark done today</button>
     </li>`;
@@ -625,8 +625,9 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
           <div class="field"><label for="fFreq">Repeats</label><select id="fFreq">${freqs.map(([v, l]) => `<option value="${v}" ${v === Number(t.freq) ? "selected" : ""}>${l}</option>`).join("")}</select></div>
           <div class="field"><label for="fSeason">Season</label><select id="fSeason"><option value="">Any time</option>${SEASONS.map(s => `<option ${s === t.season ? "selected" : ""}>${s}</option>`).join("")}</select></div>
         </div>
-        <div class="field"><label for="fTtc">Time to complete (days)</label>
+        <div class="field"><label for="fTtc">Window to complete (days)</label>
           <input id="fTtc" type="number" inputmode="numeric" min="1" step="1" required value="${ttcOf(t)}">
+          <span class="hint">How long this can safely wait once it’s due.</span>
           <span class="hint" id="fTtcHint"></span></div>
         <div class="grid2">
           <div class="field"><label for="fLast">Last completed</label><input id="fLast" type="date" value="${t.last || ""}" max="${todayIso()}"></div>
@@ -674,7 +675,7 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
   }
 
   function toCsv() {
-    const rows = [["Category", "Task", "Frequency (months)", "Time to Complete (days)", "Season", "Last Completed", "Status", "Next Due", "Avg. Cost", "Notes"]];
+    const rows = [["Category", "Task", "Frequency (months)", "Window to Complete (days)", "Season", "Last Completed", "Status", "Next Due", "Avg. Cost", "Notes"]];
     store.tasks.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).forEach(t => {
       const i = dueInfo(t);
       rows.push([t.category, t.task, t.freq, ttcOf(t), t.season || "", t.last || "", i.status === "ok" ? "COMPLETE" : i.status === "soon" ? "WARNING" : "OVERDUE", i.due ? iso(i.due) : "", t.cost ?? "", t.notes || ""]);
