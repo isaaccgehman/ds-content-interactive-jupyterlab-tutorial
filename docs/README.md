@@ -3,6 +3,8 @@
 A home-screen web app built from `Home_Maintenance_Log.xlsx`: 137 recurring tasks for 1715 Mill Rd plus the "Items to add" list.
 
 ## Features
+- **Top Three** tab: the three most pressing tasks. Overdue tasks come first, quickest job first. Everything else is ranked by days until due plus days to complete, so a short job due tomorrow can move ahead of a long job due today.
+- **Time to complete** (1–30 days) on every task, always shorter than the repeat interval (a weekly task allows 1–6 days). Weekly and every-2-weeks repeats are available.
 - Overdue / Due soon / Up to date counters, using the spreadsheet's own rules (monthly tasks: due 30 days after last done, warning 1 week ahead; longer tasks: due after months × 30.43 days, warning 1 month ahead). Tasks never logged count as overdue.
 - One tap on ✓ logs a task as done today (with Undo). Tap a task to edit its date, frequency, season, cost and notes, and to see its history.
 - Filter by season, category and search; group by status, category or frequency.

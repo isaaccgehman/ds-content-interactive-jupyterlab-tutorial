@@ -99,7 +99,7 @@ h1 { font-family: var(--display); font-stretch: 80%; font-weight: 800; font-size
 .meter { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; display: flex; }
 .meter i { display: block; height: 100%; }
 
-.tabs { display: grid; grid-template-columns: 1fr 1fr; background: var(--line); border-radius: 10px; padding: 3px; }
+.tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--line); border-radius: 10px; padding: 3px; }
 .tabs button { border: 0; background: transparent; border-radius: 8px; padding: 7px; font-weight: 600; font-size: 14px; color: var(--muted); }
 .tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
 
@@ -141,6 +141,27 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
 .empty { text-align: center; padding: 48px 12px; color: var(--muted); }
 .empty b { display: block; font-family: var(--display); font-stretch: 85%; font-size: 20px; color: var(--ink); margin-bottom: 4px; }
 .notice { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--soon-bg); color: var(--soon); font-size: 13px; font-weight: 500; }
+
+/* Top Three */
+.top3 { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 12px; }
+.pick { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 14px 12px; }
+.pick .rank { grid-row: span 2; font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 44px; line-height: .9; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pick.overdue .rank { color: var(--over); }
+.pick.soon .rank { color: var(--soon); }
+.pick.ok .rank { color: var(--ok); }
+.pick .info { border: 0; background: transparent; padding: 0; text-align: left; display: grid; gap: 2px; min-width: 0; }
+.pick .action { font-size: 17px; }
+.facts { grid-column: 2; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.facts div { display: grid; gap: 1px; min-width: 0; }
+.facts dt { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.facts dd { margin: 0; font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }
+.pick.overdue .facts .d { color: var(--over); }
+.pick.soon .facts .d { color: var(--soon); }
+.pick .done-wide { grid-column: 2; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.pick .done-wide svg { width: 18px; height: 18px; }
+.rule { margin: 16px 2px 0; }
+.hint { font-size: 12px; color: var(--muted); }
+.hint.bad { color: var(--over); font-weight: 600; }
 
 /* Ideas */
 .addidea { display: flex; gap: 8px; padding-block: 14px 4px; }
@@ -209,13 +230,19 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
     </div>
     <div class="meter" id="meter" aria-hidden="true"></div>
     <div class="tabs" role="tablist">
-      <button role="tab" id="tabTasks" aria-selected="true">Tasks</button>
+      <button role="tab" id="tabTop" aria-selected="true">Top Three</button>
+      <button role="tab" id="tabTasks" aria-selected="false">All tasks</button>
       <button role="tab" id="tabIdeas" aria-selected="false">To add <span id="ideaCount"></span></button>
     </div>
   </div>
 </header>
 
 <main class="wrap">
+  <section id="topView">
+    <div id="topNotice"></div>
+    <ol class="top3" id="topList"></ol>
+    <p class="small rule">Overdue tasks come first, quickest job first. After that, tasks are ranked by days until due plus days to complete, so a short job due tomorrow can move ahead of a long job due today.</p>
+  </section>
   <section id="tasksView">
     <div class="filters">
       <input class="search" id="search" type="search" placeholder="Search tasks" autocomplete="off">
@@ -264,6 +291,7 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
   const parse = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
   const today = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
   const todayIso = () => iso(today());
+  const fmtShort = d => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   const fmtDate = d => d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   const currentSeason = () => { const m = new Date().getMonth(); return m >= 2 && m <= 4 ? "Spring" : m >= 5 && m <= 7 ? "Summer" : m >= 8 && m <= 10 ? "Fall" : "Winter"; };
   const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -271,11 +299,23 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
   // Status rules carried over from the spreadsheet formula:
   // monthly tasks are due 30 days after the last completion and warn 1 week ahead;
   // longer tasks are due after freq × 30.43 days and warn 1 month ahead.
+  // Weekly (0.25) and every-2-weeks (0.5) repeat on exact 7/14-day cycles.
+  function intervalDays(freq) {
+    freq = Number(freq) || 12;
+    if (freq === 0.25) return 7;
+    if (freq === 0.5) return 14;
+    if (freq === 1) return 30;
+    return Math.round(freq * 30.43);
+  }
+  // Time to complete: 1–30 days, and always shorter than the repeat interval.
+  const maxTtc = freq => Math.max(1, Math.min(30, intervalDays(freq) - 1));
+  const ttcOf = t => Math.min(maxTtc(t.freq), Math.max(1, Math.round(Number(t.ttc) || 1)));
+  const ttcText = n => `${n} day${n === 1 ? "" : "s"} to complete`;
   function dueInfo(t) {
     if (!t.last) return { status: "overdue", days: -Infinity, due: null };
     const freq = Number(t.freq) || 12;
-    const span = freq === 1 ? 30 : Math.round(freq * 30.43);
-    const warn = freq === 1 ? 7 : 30;
+    const span = intervalDays(freq);
+    const warn = freq === 0.25 ? 2 : freq === 0.5 ? 3 : freq === 1 ? 7 : 30;
     const due = new Date(parse(t.last).getTime() + span * DAY);
     const days = Math.round((due - today()) / DAY);
     return { status: days < 0 ? "overdue" : days < warn ? "soon" : "ok", days, due };
@@ -294,11 +334,25 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
   }
   function freqText(f) {
     f = Number(f);
+    if (f === 0.25) return "Weekly";
+    if (f === 0.5) return "Every 2 weeks";
     if (f === 1) return "Monthly";
     if (f === 12) return "Yearly";
     if (f % 12 === 0) return `Every ${f / 12} years`;
     if (f < 12) return `Every ${f} months`;
     return `Every ${f} months`;
+  }
+  // Top Three ordering.
+  // 1. Overdue tasks come first; among them the quickest job wins, then the most overdue.
+  // 2. All other tasks are ranked by (days until due + days to complete), so a short
+  //    job due tomorrow (1 + 2 = 3) beats a 30-day job due today (0 + 30 = 30),
+  //    and on the same due date the shorter job wins.
+  function priorityCmp(a, b) {
+    const ao = a.info.days < 0, bo = b.info.days < 0;
+    if (ao !== bo) return ao ? -1 : 1;
+    const ord = (a.order ?? 1e9) - (b.order ?? 1e9);
+    if (ao) return (a.ttc - b.ttc) || (a.info.days - b.info.days) || ord;
+    return ((a.info.days + a.ttc) - (b.info.days + b.ttc)) || (a.info.days - b.info.days) || (a.ttc - b.ttc) || ord;
   }
   function splitName(name) {
     const i = name.indexOf(":");
@@ -391,7 +445,7 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
   };
 
   // ---------- UI state ----------
-  const ui = { tab: "tasks", status: null, season: "All", cat: "All", sort: "due", q: "", notice: "" };
+  const ui = { tab: "top", status: null, season: "All", cat: "All", sort: "due", q: "", notice: "" };
   try { const s = JSON.parse(localStorage.getItem(LS_KEY + "-ui") || "{}"); if (s.sort) ui.sort = s.sort; } catch (e) {}
   const saveUi = () => { try { localStorage.setItem(LS_KEY + "-ui", JSON.stringify({ sort: ui.sort })); } catch (e) {} };
 
@@ -401,7 +455,7 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
     const T = today();
     $("#today").textContent = `Today · ${T.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" })} · ${currentSeason()}`;
     $("#homeName").textContent = store.home;
-    const tasks = store.tasks.map(t => ({ ...t, info: dueInfo(t), ...splitName(t.task || "") }));
+    const tasks = store.tasks.map(t => ({ ...t, ttc: ttcOf(t), info: dueInfo(t), ...splitName(t.task || "") }));
     const counts = { overdue: 0, soon: 0, ok: 0 };
     tasks.forEach(t => counts[t.info.status]++);
     $("#cOver").textContent = store.loaded ? counts.overdue : "–";
@@ -411,7 +465,9 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
     $("#meter").innerHTML = ["ok", "soon", "overdue"].map(s => `<i style="width:${(counts[s] / total) * 100}%;background:var(--${s === "overdue" ? "over" : s})"></i>`).join("");
     document.querySelectorAll(".counter").forEach(b => b.setAttribute("aria-pressed", String(ui.status === b.dataset.status)));
     $("#ideaCount").textContent = store.ideas.length ? `(${store.ideas.length})` : "";
+    $("#tabTop").setAttribute("aria-selected", String(ui.tab === "top"));
     $("#tabTasks").setAttribute("aria-selected", String(ui.tab === "tasks"));
+    $("#topView").hidden = ui.tab !== "top";
     $("#tabIdeas").setAttribute("aria-selected", String(ui.tab === "ideas"));
     $("#tasksView").hidden = ui.tab !== "tasks";
     $("#ideasView").hidden = ui.tab !== "ideas";
@@ -427,7 +483,17 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
     $("#catFilter").innerHTML = `<option value="All">All categories</option>` + cats.map(c => `<option ${c === ui.cat ? "selected" : ""}>${esc(c)}</option>`).join("");
     $("#sortBy").value = ui.sort;
 
-    $("#notice").innerHTML = ui.notice ? `<div class="notice">${esc(ui.notice)}</div>` : "";
+    $("#notice").innerHTML = $("#topNotice").innerHTML = ui.notice ? `<div class="notice">${esc(ui.notice)}</div>` : "";
+
+    // Top Three
+    const top = tasks.slice().sort(priorityCmp).slice(0, 3);
+    if (!store.loaded) {
+      $("#topList").innerHTML = `<li class="empty"><b>Loading your log…</b>Your three most pressing tasks will appear here.</li>`;
+    } else if (!top.length) {
+      $("#topList").innerHTML = `<li class="empty"><b>No tasks yet</b>Add tasks under All tasks and the most pressing three show up here.</li>`;
+    } else {
+      $("#topList").innerHTML = top.map((t, i) => pickHtml(t, i + 1)).join("");
+    }
 
     // filter
     const q = ui.q.trim().toLowerCase();
@@ -478,10 +544,34 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
       <button class="info" data-act="open">
         ${t.subject ? `<span class="subject">${esc(t.subject)}</span>` : ""}
         <span class="action">${esc(t.action)}</span>
-        <span class="meta"><span class="due">${esc(dueText(t.info))}</span><span>${esc(freqText(t.freq))}${t.season ? " · " + esc(t.season) : ""}</span>${lastTxt ? `<span>${lastTxt}</span>` : ""}</span>
+        <span class="meta"><span class="due">${esc(dueText(t.info))}</span><span>${esc(freqText(t.freq))}${t.season ? " · " + esc(t.season) : ""}</span><span>${t.ttc}d to complete</span>${lastTxt ? `<span>${lastTxt}</span>` : ""}</span>
       </button>
       <button class="done" data-act="done" aria-label="Mark done today">${ICON_CHECK}</button>
     </article>`;
+  }
+
+  function pickHtml(t, rank) {
+    const s = t.info.status;
+    let dueVal, startVal;
+    if (!t.info.due) { dueVal = "Never logged"; startVal = "Now"; }
+    else {
+      dueVal = t.info.days < 0 ? `${spanText(-t.info.days)} late` : t.info.days === 0 ? "Today" : fmtShort(t.info.due);
+      const start = new Date(t.info.due.getTime() - t.ttc * DAY);
+      startVal = start <= today() ? "Now" : fmtShort(start);
+    }
+    return `<li class="pick ${s}" data-id="${esc(t.id)}">
+      <span class="rank" aria-label="Priority ${rank}">${rank}</span>
+      <button class="info" data-act="open">
+        ${t.subject ? `<span class="subject">${esc(t.subject)}</span>` : ""}
+        <span class="action">${esc(t.action)}</span>
+      </button>
+      <dl class="facts">
+        <div><dt>Due</dt><dd class="d">${esc(dueVal)}</dd></div>
+        <div><dt>Takes</dt><dd>${t.ttc} day${t.ttc === 1 ? "" : "s"}</dd></div>
+        <div><dt>Start</dt><dd>${esc(startVal)}</dd></div>
+      </dl>
+      <button class="btn ghost done-wide" data-act="done">${ICON_CHECK} Mark done today</button>
+    </li>`;
   }
 
   // ---------- actions ----------
@@ -518,11 +608,11 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
 
   function openTask(id, preset) {
     const isNew = !id;
-    const t = isNew ? { id: uid("t"), task: preset || "", category: ui.cat !== "All" ? ui.cat : "", freq: 12, season: null, last: null, cost: null, notes: "", history: [], order: Date.now() } : store.tasks.find(x => x.id === id);
+    const t = isNew ? { id: uid("t"), task: preset || "", category: ui.cat !== "All" ? ui.cat : "", freq: 12, ttc: 1, season: null, last: null, cost: null, notes: "", history: [], order: Date.now() } : store.tasks.find(x => x.id === id);
     if (!t) return;
     const info = dueInfo(t);
     const cats = [...new Set(store.tasks.map(x => x.category).filter(Boolean))].sort();
-    const freqs = [[1, "Monthly"], [3, "Every 3 months"], [6, "Every 6 months"], [12, "Yearly"], [24, "Every 2 years"], [36, "Every 3 years"], [60, "Every 5 years"], [120, "Every 10 years"]];
+    const freqs = [[0.25, "Weekly"], [0.5, "Every 2 weeks"], [1, "Monthly"], [3, "Every 3 months"], [6, "Every 6 months"], [12, "Yearly"], [24, "Every 2 years"], [36, "Every 3 years"], [60, "Every 5 years"], [120, "Every 10 years"]];
     if (!freqs.some(f => f[0] === Number(t.freq))) freqs.push([Number(t.freq), freqText(t.freq)]);
     openSheet(`
       <h3>${isNew ? "New task" : esc(t.task)}</h3>
@@ -535,6 +625,9 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
           <div class="field"><label for="fFreq">Repeats</label><select id="fFreq">${freqs.map(([v, l]) => `<option value="${v}" ${v === Number(t.freq) ? "selected" : ""}>${l}</option>`).join("")}</select></div>
           <div class="field"><label for="fSeason">Season</label><select id="fSeason"><option value="">Any time</option>${SEASONS.map(s => `<option ${s === t.season ? "selected" : ""}>${s}</option>`).join("")}</select></div>
         </div>
+        <div class="field"><label for="fTtc">Time to complete (days)</label>
+          <input id="fTtc" type="number" inputmode="numeric" min="1" step="1" required value="${ttcOf(t)}">
+          <span class="hint" id="fTtcHint"></span></div>
         <div class="grid2">
           <div class="field"><label for="fLast">Last completed</label><input id="fLast" type="date" value="${t.last || ""}" max="${todayIso()}"></div>
           <div class="field"><label for="fCost">Avg. cost ($)</label><input id="fCost" type="number" inputmode="decimal" min="0" step="any" value="${t.cost ?? ""}" placeholder="0"></div>
@@ -548,17 +641,30 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
         ${isNew ? "" : `<button type="button" class="btn danger" id="fDelete">Delete task</button>`}
       </form>`);
     $("#fCancel").onclick = closeSheet;
+    // keep time-to-complete under the repeat interval
+    const checkTtc = () => {
+      const f = Number($("#fFreq").value), max = maxTtc(f), v = Number($("#fTtc").value);
+      $("#fTtc").max = max;
+      const bad = !Number.isInteger(v) || v < 1 || v > max;
+      const why = intervalDays(f) - 1 < 30 ? `must be shorter than the ${intervalDays(f)}-day repeat` : "maximum is 30 days";
+      $("#fTtcHint").textContent = bad ? `Enter 1 to ${max} days (${why}).` : `1 to ${max} days. ${intervalDays(f) - 1 < 30 ? `Must be shorter than the ${intervalDays(f)}-day repeat.` : ""}`;
+      $("#fTtcHint").classList.toggle("bad", bad);
+      $("#fTtc").setCustomValidity(bad ? `Enter 1 to ${max} days` : "");
+      return !bad;
+    };
+    $("#fFreq").onchange = checkTtc; $("#fTtc").oninput = checkTtc; checkTtc();
     if (!isNew) {
       $("#fDoneToday").onclick = () => { closeSheet(); markDone(t.id); };
       $("#fDelete").onclick = e => { if (armed(e.currentTarget, "Tap again to delete")) { closeSheet(); store.remove("tasks", t.id); toast("Task deleted", () => store.put("tasks", t)); } };
     }
     $("#taskForm").onsubmit = e => {
       e.preventDefault();
+      if (!checkTtc()) { $("#fTtc").reportValidity(); return; }
       const last = $("#fLast").value || null;
       let history = [...(t.history || [])];
       if (last && last !== t.last && !history.includes(last)) history = [last, ...history].sort().reverse().slice(0, 24);
       const cost = $("#fCost").value === "" ? null : Number($("#fCost").value);
-      const next = { ...t, task: $("#fTask").value.trim(), category: $("#fCat").value.trim() || "Other", freq: Number($("#fFreq").value), season: $("#fSeason").value || null, last, cost, notes: $("#fNotes").value.trim(), history };
+      const next = { ...t, task: $("#fTask").value.trim(), category: $("#fCat").value.trim() || "Other", freq: Number($("#fFreq").value), ttc: Number($("#fTtc").value), season: $("#fSeason").value || null, last, cost, notes: $("#fNotes").value.trim(), history };
       if (!next.task) return;
       closeSheet();
       store.put("tasks", next);
@@ -568,10 +674,10 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
   }
 
   function toCsv() {
-    const rows = [["Category", "Task", "Frequency (months)", "Season", "Last Completed", "Status", "Next Due", "Avg. Cost", "Notes"]];
+    const rows = [["Category", "Task", "Frequency (months)", "Time to Complete (days)", "Season", "Last Completed", "Status", "Next Due", "Avg. Cost", "Notes"]];
     store.tasks.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).forEach(t => {
       const i = dueInfo(t);
-      rows.push([t.category, t.task, t.freq, t.season || "", t.last || "", i.status === "ok" ? "COMPLETE" : i.status === "soon" ? "WARNING" : "OVERDUE", i.due ? iso(i.due) : "", t.cost ?? "", t.notes || ""]);
+      rows.push([t.category, t.task, t.freq, ttcOf(t), t.season || "", t.last || "", i.status === "ok" ? "COMPLETE" : i.status === "soon" ? "WARNING" : "OVERDUE", i.due ? iso(i.due) : "", t.cost ?? "", t.notes || ""]);
     });
     return rows.map(r => r.map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(",")).join("\n");
   }
@@ -631,7 +737,13 @@ main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
   $("#catFilter").onchange = e => { ui.cat = e.target.value; render(); };
   $("#sortBy").onchange = e => { ui.sort = e.target.value; saveUi(); render(); };
   $("#search").oninput = e => { ui.q = e.target.value; render(); };
+  $("#tabTop").onclick = () => { ui.tab = "top"; render(); };
   $("#tabTasks").onclick = () => { ui.tab = "tasks"; render(); };
+  $("#topList").onclick = e => {
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const id = b.closest(".pick").dataset.id;
+    if (b.dataset.act === "done") markDone(id); else openTask(id);
+  };
   $("#tabIdeas").onclick = () => { ui.tab = "ideas"; render(); };
   $("#fab").onclick = () => openTask(null);
   $("#menuBtn").onclick = openMenu;
